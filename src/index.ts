@@ -59,28 +59,6 @@ function cosineSimilarity(vecA: number[], vecB: number[]): number {
   return dot / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
-function chunkText(text: string, chunkSize = 500, overlap = 50): string[] {
-  const sentences = text.split(/(?<=[.?!])\s+/); // split by sentence
-  const chunks: string[] = [];
-  let currentChunk = "";
-
-  for (const sentence of sentences) {
-    if ((currentChunk + sentence).length > chunkSize) {
-      chunks.push(currentChunk.trim());
-      // carry over some overlap for context
-      currentChunk = currentChunk.slice(-overlap) + " " + sentence;
-    } else {
-      currentChunk += " " + sentence;
-    }
-  }
-
-  if (currentChunk.trim()) {
-    chunks.push(currentChunk.trim());
-  }
-
-  return chunks;
-}
-
 /**
  * Extracts text per page using pdf-parse's pagerender.
  * Returns [{ pageNumber, text }, ...] in correct order.
@@ -176,7 +154,7 @@ app.post(
       vectorStores.set(pdfId, embeddings);
 
       // File URL for client preview/download
-      const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${
+      const fileUrl = `https://${req.get("host")}/uploads/${
         req.file.filename
       }`;
 
