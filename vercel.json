@@ -8,11 +8,5 @@
   "env": {
     "GEMINI_API_KEY1": "@GEMINI_API_KEY1",
     "GEMINI_API_KEY2": "@GEMINI_API_KEY2"
-  },
-  "functions": {
-    "dist/src/index.js": {
-      "memory": 1024,
-      "maxDuration": 60
-    }
   }
 }
