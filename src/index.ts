@@ -30,6 +30,7 @@ const PORT = process.env.PORT || 5001;
 interface EmbeddingEntry {
   text: string;
   embedding: number[];
+  pageNumber: number;
 }
 
 // In-memory vector store: { pdfId: [ { text, embedding } ] }
@@ -95,23 +96,37 @@ app.post(
       const fileBuffer = fs.readFileSync(req.file.path);
       const pdfData = await pdfParse(fileBuffer);
 
-      const cleanedText: string = pdfData.text.replace(/\s+/g, " ").trim(); // collapse whitespace
-      const chunks: string[] = chunkText(cleanedText, 500, 50);
-
-      const embeddings: EmbeddingEntry[] = await Promise.all(
-        chunks.map(async (chunk: string) => {
-          const response = await embeddingModel.embedContent(chunk);
-          return {
-            text: chunk,
-            embedding: response.embedding?.values || []
-          };
-        })
-      );
+      // Split by page using form feed ("\f")
+      const pages = pdfData.text.split("\f");
 
       const pdfId = uuidv4();
+      const embeddings: EmbeddingEntry[] = [];
+
+      // Process each page separately
+      for (let i = 0; i < pages.length; i++) {
+        const pageNumber = i + 1;
+        const pageText = pages[i].replace(/\s+/g, " ").trim();
+
+        if (!pageText) continue;
+
+        // Chunk inside page (500 tokens with 50 overlap)
+        const chunks = chunkText(pageText, 500, 50);
+
+        for (const chunk of chunks) {
+          const response = await embeddingModel.embedContent(chunk);
+
+          embeddings.push({
+            text: chunk,
+            embedding: response.embedding?.values || [],
+            pageNumber
+          });
+        }
+      }
+
+      // Store in memory vector store with pdfId
       vectorStores.set(pdfId, embeddings);
 
-      // File URL for client
+      // File URL for client preview/download
       const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${
         req.file.filename
       }`;
@@ -149,7 +164,9 @@ app.post("/ask", async (req: Request, res: Response) => {
       .sort((a, b) => b.score - a.score)
       .slice(0, 3);
 
-    const context = ranked.map((r) => r.text).join("\n");
+    const context = ranked
+      .map((r, i) => `(${i + 1}) [p.${r.pageNumber}] ${r.text}`)
+      .join("\n");
 
     // Stream answer from Gemini
     const result = await model.generateContentStream({
@@ -163,8 +180,15 @@ app.post("/ask", async (req: Request, res: Response) => {
 
     res.setHeader("Content-Type", "text/event-stream");
 
+    const uniqueCitations = [...new Set(ranked.map((r) => r.pageNumber))];
+
     for await (const chunk of result.stream) {
-      res.write(`data: ${chunk.text()}\n\n`);
+      res.write(
+        `data: ${JSON.stringify({
+          text: chunk.text(),
+          citations: uniqueCitations
+        })}\n\n`
+      );
     }
 
     res.end();
