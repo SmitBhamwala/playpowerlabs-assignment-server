@@ -58,6 +58,28 @@ function cosineSimilarity(vecA: number[], vecB: number[]): number {
   return dot / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
+function chunkText(text: string, chunkSize = 500, overlap = 50): string[] {
+  const sentences = text.split(/(?<=[.?!])\s+/); // split by sentence
+  const chunks: string[] = [];
+  let currentChunk = "";
+
+  for (const sentence of sentences) {
+    if ((currentChunk + sentence).length > chunkSize) {
+      chunks.push(currentChunk.trim());
+      // carry over some overlap for context
+      currentChunk = currentChunk.slice(-overlap) + " " + sentence;
+    } else {
+      currentChunk += " " + sentence;
+    }
+  }
+
+  if (currentChunk.trim()) {
+    chunks.push(currentChunk.trim());
+  }
+
+  return chunks;
+}
+
 /**
  * Upload PDF → parse → chunk → embed → save
  */
@@ -73,8 +95,8 @@ app.post(
       const fileBuffer = fs.readFileSync(req.file.path);
       const pdfData = await pdfParse(fileBuffer);
 
-      const text: string = pdfData.text;
-      const chunks: string[] = text.match(/.{1,500}/g) || [];
+      const cleanedText: string = pdfData.text.replace(/\s+/g, " ").trim(); // collapse whitespace
+      const chunks: string[] = chunkText(cleanedText, 500, 50);
 
       const embeddings: EmbeddingEntry[] = await Promise.all(
         chunks.map(async (chunk: string) => {
@@ -129,8 +151,6 @@ app.post("/ask", async (req: Request, res: Response) => {
 
     const context = ranked.map((r) => r.text).join("\n");
 
-    console.log("Context:", context);
-
     // Stream answer from Gemini
     const result = await model.generateContentStream({
       contents: [
@@ -145,7 +165,6 @@ app.post("/ask", async (req: Request, res: Response) => {
 
     for await (const chunk of result.stream) {
       res.write(`data: ${chunk.text()}\n\n`);
-      console.log(chunk.text());
     }
 
     res.end();
