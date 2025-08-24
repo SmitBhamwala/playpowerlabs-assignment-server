@@ -1,0 +1,18 @@
+{
+  "version": 2,
+  "builds": [{ "src": "dist/src/index.js", "use": "@vercel/node" }],
+  "routes": [
+    { "src": "/uploads/(.*)", "dest": "/uploads/$1" },
+    { "src": "/(.*)", "dest": "/dist/src/index.js" }
+  ],
+  "env": {
+    "GEMINI_API_KEY1": "@GEMINI_API_KEY1",
+    "GEMINI_API_KEY2": "@GEMINI_API_KEY2"
+  },
+  "functions": {
+    "dist/src/index.js": {
+      "memory": 1024,
+      "maxDuration": 60
+    }
+  }
+}

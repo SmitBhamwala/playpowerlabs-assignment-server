@@ -17,7 +17,7 @@ app.use(express.json());
 
 app.use(
   cors({
-    origin: ["http://localhost:5173", "http://localhost:4173"]
+    origin: ["https://playpowerlabs-assignment.vercel.app"]
   })
 );
 
@@ -126,6 +126,10 @@ async function extractTextByPage(
   // Map to [{pageNumber, text}] with 1-based page numbers
   return pages.map((text, idx) => ({ pageNumber: idx + 1, text }));
 }
+
+app.get("/", (req: Request, res: Response) => {
+  res.send("PDF Q&A with Gemini API - Server is running");
+});
 
 /**
  * Upload PDF → parse → chunk → embed → save
