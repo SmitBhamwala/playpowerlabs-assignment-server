@@ -143,8 +143,6 @@ app.post(
 
       const pdfData = await extractTextByPage(req.file.path);
 
-      console.log("Pdf data:", pdfData);
-
       if (!pdfData) {
         return res
           .status(500)
@@ -198,11 +196,9 @@ app.post("/ask", async (req: Request, res: Response) => {
       return res.status(404).json({ error: "PDF not found" });
     }
 
-    // Embed user query
     const queryEmbeddingResp = await embeddingModel.embedContent(question);
     const queryEmbedding = queryEmbeddingResp.embedding?.values || [];
 
-    // Rank chunks
     const ranked = embeddings
       .map((e) => ({
         ...e,
@@ -210,10 +206,6 @@ app.post("/ask", async (req: Request, res: Response) => {
       }))
       .sort((a, b) => b.score - a.score)
       .slice(0, 3);
-
-    const uniqueCitations = [
-      ...new Set(ranked.map((r) => r.pageNumber).sort((a, b) => a - b))
-    ];
 
     const context = ranked
       .map((r, i) => `(${i + 1}) [p.${r.pageNumber}] ${r.text}`)
@@ -224,29 +216,57 @@ app.post("/ask", async (req: Request, res: Response) => {
       contents: [
         {
           role: "user",
-          parts: [{ text: `Context: ${context}\n\nQuestion: ${question}` }]
+          parts: [
+            {
+              text: `You are given the following context from a PDF:\n\n${context}\n\n
+                    Question: ${question}\n\n
+                    Instructions:
+                    1. Answer the question clearly.
+                    2. Answer should be in a markdown format.
+                    3. If needed, break down the answer in proper paragraphs with headings and subheadings.
+                    4. Use can use bullet points or numbered lists if needed.
+                    5. Don't make up answers. If the answer is not contained within the context, say "I don't know. Answer is not in the provided PDF".
+                    6. At the very end, output the exact pagenumber citations you used for the answer in this format ONLY:
+                    "Citations: [2, 3]".`
+            }
+          ]
         }
       ]
     });
 
     res.setHeader("Content-Type", "text/event-stream");
 
+    let citations: number[] = [];
+
     for await (const chunk of result.stream) {
+      const text = chunk.text();
+
+      // Try to extract citations as soon as they appear
+      const citationMatch = text.match(/Citations:\s*\[\s*([^\]]*)\s*\]/i);
+      if (citationMatch) {
+        citations = citationMatch[1]
+          .split(",")
+          .map((n) => parseInt(n.trim(), 10))
+          .filter((n) => !isNaN(n));
+      }
+
+      //Remove citation from the text chunk
+      const cleanText = text.replace(/Citations:\s*\[\s*([^\]]*)\s*\]/gi, "");
+
       res.write(
         `data: ${JSON.stringify({
-          text: chunk.text(),
-          citations: uniqueCitations
-        })}\n\n`
+          text: cleanText,
+          citations
+        })}`
       );
     }
 
     res.end();
   } catch (err) {
-    console.error(err);
     res.status(500).json({ error: "Query failed" });
   }
 });
 
 app.listen(PORT, () =>
-  console.log(`🚀 Server running on http://localhost:${PORT}`)
+  console.log(`Server running on http://localhost:${PORT}`)
 );
