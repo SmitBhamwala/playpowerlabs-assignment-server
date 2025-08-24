@@ -82,6 +82,52 @@ function chunkText(text: string, chunkSize = 500, overlap = 50): string[] {
 }
 
 /**
+ * Extracts text per page using pdf-parse's pagerender.
+ * Returns [{ pageNumber, text }, ...] in correct order.
+ */
+async function extractTextByPage(
+  pdfPath: string
+): Promise<Array<{ pageNumber: number; text: string }>> {
+  const dataBuffer = fs.readFileSync(pdfPath);
+
+  // We'll collect per-page text here in order
+  const pages: string[] = [];
+
+  await pdfParse(dataBuffer, {
+    // Called once per page, sequentially
+    pagerender: async (pageData: any) => {
+      const textContent = await pageData.getTextContent();
+      let lastY: number | undefined;
+      let pageText = "";
+
+      for (const item of textContent.items) {
+        const str: string = item.str || "";
+        const y: number | undefined = item.transform?.[5];
+
+        if (lastY === undefined || lastY === y) {
+          pageText += str + " ";
+        } else {
+          pageText += "\n" + str + " ";
+        }
+        lastY = y;
+      }
+
+      // Normalize whitespace
+      pageText = pageText.replace(/\s+/g, " ").trim();
+
+      // Push to our per-page array (order preserved)
+      pages.push(pageText);
+
+      // Must return the page text for pdf-parse's own aggregate behavior
+      return pageText;
+    }
+  });
+
+  // Map to [{pageNumber, text}] with 1-based page numbers
+  return pages.map((text, idx) => ({ pageNumber: idx + 1, text }));
+}
+
+/**
  * Upload PDF → parse → chunk → embed → save
  */
 app.post(
@@ -93,19 +139,25 @@ app.post(
         return res.status(400).json({ error: "No file uploaded" });
       }
 
-      const fileBuffer = fs.readFileSync(req.file.path);
-      const pdfData = await pdfParse(fileBuffer);
+      // const fileBuffer = fs.readFileSync(req.file.path);
 
-      // Split by page using form feed ("\f")
-      const pages = pdfData.text.split("\f");
+      const pdfData = await extractTextByPage(req.file.path);
+
+      console.log("Pdf data:", pdfData);
+
+      if (!pdfData) {
+        return res
+          .status(500)
+          .json({ error: "Failed to extract text from PDF" });
+      }
 
       const pdfId = uuidv4();
       const embeddings: EmbeddingEntry[] = [];
 
       // Process each page separately
-      for (let i = 0; i < pages.length; i++) {
-        const pageNumber = i + 1;
-        const pageText = pages[i].replace(/\s+/g, " ").trim();
+      for (let i = 0; i < pdfData.length; i++) {
+        const pageNumber = pdfData[i].pageNumber;
+        const pageText = pdfData[i].text.replace(/\s+/g, " ").trim();
 
         if (!pageText) continue;
 
@@ -159,12 +211,13 @@ app.post("/ask", async (req: Request, res: Response) => {
       .sort((a, b) => b.score - a.score)
       .slice(0, 3);
 
-    const uniqueCitations = [...new Set(ranked.map((r) => r.pageNumber))];
+    const uniqueCitations = [
+      ...new Set(ranked.map((r) => r.pageNumber).sort((a, b) => a - b))
+    ];
 
     const context = ranked
       .map((r, i) => `(${i + 1}) [p.${r.pageNumber}] ${r.text}`)
       .join("\n");
-    console.log("Context for Gemini:", context);
 
     // Stream answer from Gemini
     const result = await model.generateContentStream({
