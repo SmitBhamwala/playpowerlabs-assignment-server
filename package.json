@@ -6,9 +6,7 @@
     "clean": "rimraf dist",
     "build": "npm run clean && npx tsc",
     "start": "npm run build && node dist/src/index.js",
-    "dev": "npm run build && concurrently \"npx tsc -w\" \"nodemon --exec ts-node src/index.ts\"",
-    "netlify-build": "npm run build",
-    "postinstall": "npm run build"
+    "dev": "npm run build && concurrently \"npx tsc -w\" \"nodemon --exec ts-node src/index.ts\""
   },
   "keywords": [],
   "author": "",
