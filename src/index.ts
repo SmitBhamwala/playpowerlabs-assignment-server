@@ -154,9 +154,7 @@ app.post(
       vectorStores.set(pdfId, embeddings);
 
       // File URL for client preview/download
-      const fileUrl = `https://${req.get("host")}/uploads/${
-        req.file.filename
-      }`;
+      const fileUrl = `https://${req.get("host")}/uploads/${req.file.filename}`;
 
       res.json({ pdfId, fileUrl });
     } catch (err) {
