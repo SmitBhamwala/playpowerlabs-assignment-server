@@ -1,0 +1,8 @@
+[build]
+  command = "npm run netlify-build"
+  publish = "dist"
+  # If you convert API endpoints to Netlify Functions, uncomment and set:
+  # functions = "netlify/functions"
+
+[build.environment]
+  NODE_VERSION = "18"
