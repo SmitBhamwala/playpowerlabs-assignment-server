@@ -6,7 +6,7 @@
     { "src": "/(.*)", "dest": "/dist/src/index.js" }
   ],
   "env": {
-    "GEMINI_API_KEY1": "@GEMINI_API_KEY1",
-    "GEMINI_API_KEY2": "@GEMINI_API_KEY2"
+    "GEMINI_API_KEY1": "@gemini_api_key1",
+    "GEMINI_API_KEY2": "@gemini_api_key2"
   }
 }
