@@ -109,18 +109,13 @@ app.post(
 
         if (!pageText) continue;
 
-        // Chunk inside page (500 tokens with 50 overlap)
-        const chunks = chunkText(pageText, 500, 50);
+        const response = await embeddingModel.embedContent(pageText);
 
-        for (const chunk of chunks) {
-          const response = await embeddingModel.embedContent(chunk);
-
-          embeddings.push({
-            text: chunk,
-            embedding: response.embedding?.values || [],
-            pageNumber
-          });
-        }
+        embeddings.push({
+          text: pageText,
+          embedding: response.embedding?.values || [],
+          pageNumber
+        });
       }
 
       // Store in memory vector store with pdfId
@@ -164,9 +159,12 @@ app.post("/ask", async (req: Request, res: Response) => {
       .sort((a, b) => b.score - a.score)
       .slice(0, 3);
 
+    const uniqueCitations = [...new Set(ranked.map((r) => r.pageNumber))];
+
     const context = ranked
       .map((r, i) => `(${i + 1}) [p.${r.pageNumber}] ${r.text}`)
       .join("\n");
+    console.log("Context for Gemini:", context);
 
     // Stream answer from Gemini
     const result = await model.generateContentStream({
@@ -179,8 +177,6 @@ app.post("/ask", async (req: Request, res: Response) => {
     });
 
     res.setHeader("Content-Type", "text/event-stream");
-
-    const uniqueCitations = [...new Set(ranked.map((r) => r.pageNumber))];
 
     for await (const chunk of result.stream) {
       res.write(
