@@ -24,7 +24,7 @@ app.use(
 // Serve static files
 app.use("/uploads", express.static("uploads"));
 
-const PORT = process.env.PORT || 5001;
+const PORT = Number(process.env.PORT) || 5001;
 
 // Type for embedding data
 interface EmbeddingEntry {
@@ -247,6 +247,6 @@ app.post("/ask", async (req: Request, res: Response) => {
   }
 });
 
-app.listen(PORT, () =>
-  console.log(`Server running on http://localhost:${PORT}`)
+app.listen(PORT, "0.0.0.0", () =>
+  console.log(`Server running on port ${PORT}`)
 );
