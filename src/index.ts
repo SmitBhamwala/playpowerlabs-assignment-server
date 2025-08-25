@@ -17,7 +17,9 @@ app.use(express.json());
 
 app.use(
   cors({
-    origin: ["https://playpowerlabs-assignment.vercel.app"]
+    origin: ["https://playpowerlabs-assignment.vercel.app"],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"]
   })
 );
 
