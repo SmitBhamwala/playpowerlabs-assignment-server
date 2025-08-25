@@ -17,7 +17,7 @@ app.use(express.json());
 
 app.use(
   cors({
-    origin: ["https://playpowerlabs-assignment.vercel.app"],
+    origin: ["https://playpowerlabs-assignment.vercel.app", "http://localhost:5173"],
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"]
   })
@@ -156,7 +156,7 @@ app.post(
       vectorStores.set(pdfId, embeddings);
 
       // File URL for client preview/download
-      const fileUrl = `http://3.6.41.198/uploads/${req.file.filename}`;
+      const fileUrl = `https://${req.get("host")}/uploads/${req.file.filename}`;
 
       res.json({ pdfId, fileUrl });
     } catch (err) {
